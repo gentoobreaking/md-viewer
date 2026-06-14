@@ -1,0 +1,766 @@
+package main
+
+import (
+	"C"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"md-viewer/core"
+
+	_ "embed"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/webview/webview_go"
+)
+
+//go:embed style.css
+var embeddedCSS string
+
+//go:embed template.html
+var embeddedHTML string
+
+var cssContent string
+var htmlTemplate string
+
+var (
+	watcher      *fsnotify.Watcher
+	watchMu      sync.Mutex
+	debounceTimer *time.Timer
+	pendingFlash bool
+)
+
+
+var (
+	currentWV   webview.WebView
+	renderer     *core.MarkdownRenderer
+	currentFile  string
+	wv           webview.WebView
+	currentTOC   string = "[]"
+)
+
+// loadResources loads CSS and HTML templates from files in development mode,
+// falling back to embedded resources in production.
+func loadResources() {
+	// Load CSS
+	if cssData, err := os.ReadFile("style.css"); err == nil {
+		cssContent = string(cssData)
+	} else {
+		cssContent = embeddedCSS
+	}
+	
+	// Load HTML template
+	if htmlData, err := os.ReadFile("template.html"); err == nil {
+		htmlTemplate = string(htmlData)
+	} else {
+		htmlTemplate = embeddedHTML
+	}
+}
+
+func prepareHTML(html string) string {
+	// Inject config directly into HTML so IIFE can read it immediately
+	script := `<script>window._initConfig=__CONF__;window._tocJSON=__TOC__;window._showTOC=__SHOWTOC__;</script></head>`
+	script = strings.Replace(script, "__CONF__", ConfigToJS(), 1)
+	script = strings.Replace(script, "__TOC__", currentTOC, 1)
+	showTOCStr := "false"
+	if currentConfig.ShowTOC {
+		showTOCStr = "true"
+	}
+	script = strings.Replace(script, "__SHOWTOC__", showTOCStr, 1)
+	html = strings.Replace(html, "</head>", script, 1)
+
+	// Set theme directly on body to avoid flash/revert bug
+	theme := currentConfig.Theme
+	if theme == "" {
+		theme = "auto"
+	}
+	html = strings.Replace(html, `data-theme="auto"`, "data-theme=\""+theme+"\"", 1)
+	return html
+}
+
+func renderMD(md string) string {
+	html, tocJSON, err := renderer.Render(md)
+	if err != nil {
+		return renderError(err.Error())
+	}
+	currentTOC = tocJSON
+	
+	// Process math formulas: convert $$...$$ and $...$ to markers for KaTeX
+	html = regexp.MustCompile(`\$\$(.*?)\$\$`).ReplaceAllString(html, "<div class=\"katex-block\">$$$1$$</div>")
+	html = regexp.MustCompile(`(?<!\\)\$(.*?)(?<!\\)\$`).ReplaceAllString(html, "<span class=\"katex-inline\">$$$1$$</span>")
+	
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", html, 1)
+	res = prepareHTML(res)
+}
+	currentTOC = tocJSON
+	
+	// Process math formulas: convert $$...$$ and $...$ to markers for KaTeX
+	html = regexp.MustCompile(`\$\$(.*?)\$\$`).ReplaceAllString(html, "<div class=\"katex-block\">$$$1$$</div>")
+	html = regexp.MustCompile(`(?<!\\)\$(.*?)(?<!\\)\$`).ReplaceAllString(html, "<span class=\"katex-inline\">$$$1$$</span>")
+	
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", html, 1)
+	res = prepareHTML(res)
+}
+	currentTOC = tocJSON
+	
+	// Process math formulas: convert $$...$$ and $...$ to markers for KaTeX
+	html = regexp.MustCompile(`\$\$(.*?)\$\$`).ReplaceAllString(html, "<div class=\"katex-block\">$$$1$$</div>")
+	html = regexp.MustCompile(`(?<!\\)\$(.*?)(?<!\\)\$`).ReplaceAllString(html, "<span class=\"katex-inline\">$$$1$$</span>")
+	
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", html, 1)
+	res = prepareHTML(res)
+}
+	currentTOC = tocJSON
+	
+	// Process math formulas: convert $$...$$ and $...$ to markers for KaTeX
+	html = regexp.MustCompile(`\$\$(.*?)\$\$`).ReplaceAllString(html, "<div class=\"katex-block\">$$$1$$</div>")
+	html = regexp.MustCompile(`(?<!\\)\$(.*?)(?<!\\)\$`).ReplaceAllString(html, "<span class=\"katex-inline\">$$$1$$</span>")
+	
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", html, 1)
+	res = prepareHTML(res)
+}
+	currentTOC = tocJSON
+	
+	// Process math formulas: convert $$...$$ and $...$ to markers for KaTeX
+	html = strings.Replace(html, "$$", "<!--MATH_BLOCK_START-->", -1)
+	html = strings.Replace(html, "$$", "<!--MATH_BLOCK_END-->", -1)
+	// Note: This simple approach has limitations with nested/multiple formulas
+	// For production, a proper regex would be better, but this avoids escaping issues
+	// A better approach would be to use regex replacement:
+	import "regexp"
+	html = regexp.MustCompile(`\$\$(.*?)\$\$`).ReplaceAllString(html, "<div class=\"katex-block\">$$$1$$</div>")
+	html = regexp.MustCompile(`(?<!\\)\$(.*?)(?<!\\)\$`).ReplaceAllString(html, "<span class=\"katex-inline\">$$$1$$</span>")
+	
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", html, 1)
+	res = prepareHTML(res)
+
+	if pendingFlash {
+		res = strings.Replace(res, "<body ", "<body class=\"reload-flash\" ", 1)
+		pendingFlash = false
+	}
+	return res
+}
+
+func renderEmpty() string {
+	content := `<div class="empty-state"><div class="empty-state-icon">📄</div><div class="empty-state-title">No file loaded</div><div>Press ⌘O to open a Markdown file</div></div>`
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", content, 1)
+	return prepareHTML(res)
+}
+
+func renderError(msg string) string {
+	content := fmt.Sprintf(`<div class="error"><strong>Error:</strong> %s</div>`, msg)
+	res := htmlTemplate
+	res = strings.Replace(res, "{{CSS}}", cssContent, 1)
+	res = strings.Replace(res, "{{CONTENT}}", content, 1)
+	return prepareHTML(res)
+}
+
+// getConfigJS returns the config JS snippet (call after LoadConfig)
+func getConfigJS() string {
+	return ConfigToJS()
+}
+
+func updateWatcher(path string) {
+	watchMu.Lock()
+	defer watchMu.Unlock()
+
+	if watcher == nil {
+		var err error
+		watcher, err = fsnotify.NewWatcher()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error creating watcher:", err)
+			return
+		}
+
+		go func() {
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					// 監聽寫入、重新建立或重新命名 (原子存檔) 事件
+					if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) {
+						watchMu.Lock()
+						
+						// 如果是 Rename，表示舊的 fd 可能失效，需要稍後重新 Add
+						isRename := event.Has(fsnotify.Rename)
+						
+						if debounceTimer != nil {
+							debounceTimer.Stop()
+						}
+						
+						debounceTimer = time.AfterFunc(150*time.Millisecond, func() {
+							watchMu.Lock()
+							defer watchMu.Unlock()
+							
+							if isRename && currentFile != "" {
+								// 重新將檔案加入監聽
+								watcher.Remove(event.Name)
+								watcher.Add(currentFile)
+							}
+							
+							if currentWV != nil {
+								currentWV.Dispatch(func() {
+									reloadFile()
+								})
+							}
+						})
+						watchMu.Unlock()
+					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					fmt.Fprintln(os.Stderr, "Watcher error:", err)
+				}
+			}
+		}()
+	}
+
+	// 移除舊的監聽
+	for _, w := range watcher.WatchList() {
+		watcher.Remove(w)
+	}
+
+	// 監聽新的檔案
+	if path != "" && !strings.HasPrefix(path, "(dragged)") {
+		err := watcher.Add(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error watching %s: %v\n", path, err)
+		}
+	}
+}
+
+func openFile() {
+	script := `try
+		set f to POSIX path of (choose file of type {"md", "markdown", "txt", "public.plain-text", "public.text"} with prompt "Select Markdown file")
+	on error
+		set f to "::empty::"
+	end try
+	return f`
+	out, _ := exec.Command("osascript", "-e", script).Output()
+	name := strings.TrimSpace(string(out))
+	if name != "" && name != "::empty::" {
+		loadFile(name)
+	}
+}
+
+func loadFile(path string) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		if currentWV != nil {
+			currentWV.SetHtml(renderError("Cannot read: " + err.Error()))
+		}
+		return
+	}
+
+	currentFile = absPath
+	updateWatcher(absPath)
+	// Save as last opened file
+	if err := SetLastOpenedFile(absPath); err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to save last opened file:", err)
+	}
+	// Update recent files menu
+	UpdateRecentFiles(currentConfig.RecentFiles)
+	// Keep exportContent in sync for export feature (supports drag-and-drop scenarios)
+	exportContent = string(data)
+	if currentWV == nil {
+		return
+	}
+
+	currentWV.SetTitle(filepath.Base(absPath) + " - md-viewer")
+	
+	if len(data) > 500*1024 {
+		currentWV.SetHtml(prepareHTML(`<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Rendering Large File...</div><div>Please wait while we process the content.</div></div>`))
+	}
+
+	go func(content string) {
+		htmlOutput := renderMD(content)
+		currentWV.Dispatch(func() {
+			if currentWV != nil {
+				currentWV.SetHtml(htmlOutput)
+			}
+		})
+	}(string(data))
+}
+
+func reloadFile() {
+	if currentFile != "" {
+		pendingFlash = true
+		loadFile(currentFile)
+	}
+}
+
+func main() {
+	renderer = core.NewMarkdownRenderer()
+
+	// Load resources (CSS/HTML) - prioritize file system in development
+	loadResources()
+
+	if err := LoadConfig(); err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to load config:", err)
+	}
+	UpdateMenuLanguage(currentConfig.Language)
+	UpdateRecentFiles(currentConfig.RecentFiles)
+
+	if len(os.Args) > 1 {
+		currentFile = os.Args[1]
+		abs, err := filepath.Abs(currentFile)
+		if err == nil {
+			updateWatcher(abs)
+		}
+	} else if currentConfig.LastOpenedFile != "" {
+		// Load last opened file if no command line argument
+		if _, err := os.Stat(currentConfig.LastOpenedFile); err == nil {
+			currentFile = currentConfig.LastOpenedFile
+			updateWatcher(currentFile)
+		}
+	}
+
+	title := "md-viewer"
+	if currentFile != "" {
+		title = filepath.Base(currentFile) + " - md-viewer"
+	}
+
+	EnsureNSAppDelegateInstalled()
+
+	wv = webview.New(true)
+	if wv == nil {
+		fmt.Fprintln(os.Stderr, "Failed to create webview")
+		os.Exit(1)
+	}
+	currentWV = wv
+	defer wv.Destroy()
+	defer func() {
+		watchMu.Lock()
+		if watcher != nil {
+			watcher.Close()
+		}
+		watchMu.Unlock()
+	}()
+
+	RegisterOpenFileCallback(func(path string) {
+		wv.Dispatch(func() { loadFile(path) })
+	})
+
+	SetupMenu(func(menuID int) {
+		// fmt.Fprintf(os.Stderr, "[MENU] callback fired: menuID=%d\n", menuID)
+		switch menuID {
+		case MenuPreferences:
+			wv.Dispatch(func() { wv.Eval("window.toggleSettingsPanel && window.toggleSettingsPanel()") })
+		case MenuOpen:
+			wv.Dispatch(func() { openFile() })
+		case MenuReload:
+			wv.Dispatch(func() { reloadFile() })
+		case MenuQuit:
+			os.Exit(0)
+		case MenuZoomIn:
+			wv.Dispatch(func() { wv.Eval("window.zoomIn && window.zoomIn()") })
+		case MenuZoomOut:
+			wv.Dispatch(func() { wv.Eval("window.zoomOut && window.zoomOut()") })
+		case MenuZoomReset:
+			wv.Dispatch(func() { wv.Eval("window.zoomReset && window.zoomReset()") })
+		case MenuTOC:
+			wv.Dispatch(func() { wv.Eval("window.toggleTOC && window.toggleTOC()") })
+		case MenuTranslate:
+			wv.Dispatch(func() {
+				wv.Eval("if(window.showTranslatePanel){console.log('[Go] calling window.showTranslatePanel');window.showTranslatePanel()}else{console.error('[Go] showTranslatePanel not found on window');document.body.style.border='10px solid red'}")
+			})
+		case MenuFind:
+			wv.Dispatch(func() { wv.Eval("window.showFindPanel && window.showFindPanel()") })
+		case MenuExportHTML:
+			exportHTML()
+		case MenuExportPDF:
+			exportPDF()
+		case MenuFocusMode:
+			wv.Eval(`
+				(function() {
+					var md = document.querySelector('.markdown-body');
+					if (!md) return;
+					
+					var elements = md.querySelectorAll('p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, table, li, tr');
+					
+					if (md.classList.contains('focus-active')) {
+						md.classList.remove('focus-active');
+						window.removeEventListener('scroll', md._focusScroll);
+						md._focusScroll = null;
+						for (var i = 0; i < elements.length; i++) {
+							elements[i].classList.remove('focus-high', 'focus-dim');
+						}
+					} else {
+						md.classList.add('focus-active');
+						
+						function update() {
+							var center = window.scrollY + window.innerHeight / 2;
+							var closest = null;
+							var closestDist = Infinity;
+							
+							// 先移除所有 class
+							for (var i = 0; i < elements.length; i++) {
+								elements[i].classList.remove('focus-high', 'focus-dim');
+							}
+							
+							// 找最接近中心的元素
+							for (var i = 0; i < elements.length; i++) {
+								var r = elements[i].getBoundingClientRect();
+								var ec = window.scrollY + r.top + r.height / 2;
+								var dist = Math.abs(ec - center);
+								if (dist < closestDist) {
+									closestDist = dist;
+									closest = i;
+								}
+							}
+							
+							// 高亮最接近的
+							if (closest !== null) {
+								elements[closest].classList.add('focus-high');
+								// 其他都淡化
+								for (var i = 0; i < elements.length; i++) {
+									if (i !== closest) elements[i].classList.add('focus-dim');
+								}
+							}
+						}
+						
+						update();
+						md._focusScroll = update;
+						window.addEventListener('scroll', update, {passive: true});
+					}
+				})();
+			`)
+		}
+	})
+
+	wv.SetTitle(title)
+
+	// Apply saved window size on startup
+	width, height := 1200, 800
+	if currentConfig.WindowWidth > 0 && currentConfig.WindowHeight > 0 {
+		width = currentConfig.WindowWidth
+		height = currentConfig.WindowHeight
+	} else {
+		width = 1200
+		height = 800
+	}
+	wv.SetSize(width, height, webview.HintNone)
+	
+	initialWidth, initialHeight := width, height
+	
+	// Also try to set NSWindow frame for better control (including position)
+	winPtr := wv.Window()
+	if winPtr != nil && currentConfig.WindowWidth > 0 && currentConfig.WindowHeight > 0 {
+		// Use saved position if available, otherwise use current position
+		winX, winY := currentConfig.WindowX, currentConfig.WindowY
+		if winX == 0 && winY == 0 {
+			// No saved position, use current
+			winX, winY = GetWindowPosition(winPtr)
+		}
+		SetWindowFrame(winPtr, winX, winY, width, height)
+	}
+
+	// Register callback for removing recent files
+	RegisterRemoveRecentFileCallback(func(path string) {
+		if err := RemoveRecentFile(path); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to remove recent file:", err)
+		}
+		// Update recent files menu
+		UpdateRecentFiles(currentConfig.RecentFiles)
+	})
+
+	// Enable native macOS drag & drop
+	RegisterDragDropCallback(func(path string) {
+		wv.Dispatch(func() { loadFile(path) })
+	})
+	windowPtr := wv.Window()
+	if windowPtr != nil {
+		CreateDragDropOverlay(windowPtr)
+	}
+
+	wv.Bind("saveTranslatedMarkdown", func(sourceLang, targetLang string) {
+		if currentFile == "" {
+			return
+		}
+
+		data, err := os.ReadFile(currentFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to read original file for export:", err)
+			return
+		}
+
+		defaultName := filepath.Base(currentFile)
+		ext := filepath.Ext(defaultName)
+		nameWithoutExt := strings.TrimSuffix(defaultName, ext)
+		suggestedName := fmt.Sprintf("%s-%s.md", nameWithoutExt, targetLang)
+
+		script := fmt.Sprintf(`try
+			set f to POSIX path of (choose file name with prompt "Save Translated Markdown" default name "%s")
+		on error
+			set f to "::empty::"
+		end try
+		return f`, suggestedName)
+
+		out, _ := exec.Command("osascript", "-e", script).Output()
+		savePath := strings.TrimSpace(string(out))
+
+		if savePath == "" || savePath == "::empty::" {
+			return
+		}
+
+		wv.Dispatch(func() {
+			wv.Eval(`(function(){
+				var overlay = document.createElement('div');
+				overlay.id = 'export-loading-overlay';
+				overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:1000000;display:flex;align-items:center;justify-content:center;color:white;flex-direction:column;backdrop-filter:blur(2px);';
+				overlay.innerHTML = '<div style="font-size:3rem;margin-bottom:1rem;animation:tp-spin 1.5s linear infinite;">⏳</div><div id="export-msg" style="font-size:18px;">正在生成翻譯文檔 (0%)...</div><style>@keyframes tp-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>';
+				document.documentElement.appendChild(overlay);
+			})()`)
+		})
+
+		go func() {
+			translatedMD, err := TranslateMarkdownSource(string(data), sourceLang, targetLang, func(p int) {
+				wv.Dispatch(func() {
+					wv.Eval(fmt.Sprintf("var m = document.getElementById('export-msg'); if(m) m.innerText = '正在生成翻譯文檔 (%d%%)...';", p))
+				})
+			})
+			
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Source translation failed:", err)
+				wv.Dispatch(func() {
+					wv.Eval(fmt.Sprintf("alert('翻譯另存失敗: %s')", err.Error()))
+					wv.Eval("var o = document.getElementById('export-loading-overlay'); if(o) o.remove();")
+				})
+				return
+			}
+
+			err = os.WriteFile(savePath, []byte(translatedMD), 0644)
+			wv.Dispatch(func() {
+				wv.Eval("var o = document.getElementById('export-loading-overlay'); if(o) o.remove();")
+				if err != nil {
+					wv.Eval(fmt.Sprintf("alert('儲存檔案失敗: %s')", err.Error()))
+				} else {
+					wv.Eval(fmt.Sprintf("alert('翻譯文檔已儲存至: %s')", savePath))
+				}
+			})
+		}()
+	})
+	wv.Bind("openFile",   func() { wv.Dispatch(func(){ openFile() }) })
+	wv.Bind("reloadFile", func() { wv.Dispatch(func(){ reloadFile() }) })
+	wv.Bind("openFileByPath", func(path string) {
+		wv.Dispatch(func() { loadFile(path) })
+	})
+	wv.Bind("openExternal", func(url string) {
+		exec.Command("open", url).Run()
+	})
+	wv.Bind("handleRelativeLink", func(relPath string) {
+		if currentFile == "" || strings.HasPrefix(currentFile, "(dragged)") {
+			return
+		}
+		baseDir := filepath.Dir(currentFile)
+		absPath := filepath.Join(baseDir, relPath)
+		wv.Dispatch(func() { loadFile(absPath) })
+	})
+	wv.Bind("loadFileContent", func(filename, content string) {
+		currentFile = "(dragged): " + filename
+		exportContent = content // keep exportContent in sync for export feature
+		if currentWV != nil {
+			currentWV.SetTitle(filename + " - md-viewer")
+			currentWV.SetHtml(renderMD(content))
+		}
+	})
+	wv.Bind("setLastOpenedFile", func(path string) {
+		if path != "" {
+			SetLastOpenedFile(path)
+		}
+	})
+	wv.Bind("removeRecentFile", func(path string) {
+		if path != "" {
+			if err := RemoveRecentFile(path); err != nil {
+				fmt.Fprintln(os.Stderr, "Failed to remove recent file:", err)
+			} else {
+				// Update the recent files menu
+				UpdateRecentFiles(currentConfig.RecentFiles)
+			}
+		}
+	})
+	wv.Bind("saveZoomSensitivity", func(level int) {
+		if err := SetZoomSensitivity(level); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save config:", err)
+		}
+	})
+	wv.Bind("saveZoomLevel", func(level float64) {
+		if err := SetZoomLevel(level); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save zoom level:", err)
+		}
+	})
+	wv.Bind("saveTheme", func(theme string) {
+		if err := SetTheme(theme); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save theme:", err)
+		}
+	})
+	wv.Bind("saveTOC", func(show bool) {
+		if err := SetTOC(show); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save TOC:", err)
+		}
+	})
+	wv.Bind("saveFont", func(family string, size int) {
+		if err := SetFont(family, size); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save font:", err)
+		}
+	})
+	wv.Bind("saveLanguage", func(lang string) {
+		if err := SetLanguage(lang); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save language:", err)
+		} else {
+			UpdateMenuLanguage(lang)
+			wv.Eval(getConfigJS() + " if(window.applyDebugBadge) window.applyDebugBadge();")
+		}
+	})
+	wv.Bind("saveLineNumbers", func(show bool) {
+		if err := SetLineNumbers(show); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save line numbers config:", err)
+		}
+	})
+	wv.Bind("saveDebugMode", func(enabled bool) {
+		if err := SetDebugMode(enabled); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save debug mode config:", err)
+			return
+		}
+		// console.log wrapper reads mdConfig.debugMode on each call; only sync state
+		wv.Eval(fmt.Sprintf("if(window.mdConfig) window.mdConfig.debugMode = %t; if(window.applyDebugBadge) window.applyDebugBadge();", enabled))
+	})
+	wv.Bind("saveWindowSize", func(width, height int) {
+		fmt.Fprintf(os.Stderr, "[saveWindowSize] width=%d, height=%d\n", width, height)
+		if err := SetWindowSize(width, height); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to save window size:", err)
+		}
+	})
+	wv.Bind("copyToClipboard", func(text string) {
+		cmd := exec.Command("pbcopy")
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Clipboard error:", err)
+			return
+		}
+		go func() {
+			defer stdin.Close()
+			fmt.Fprint(stdin, text)
+		}()
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "pbcopy failed:", err)
+		}
+	})
+
+	wv.Bind("jsError", func(errorMsg string) {
+		// Log JavaScript errors to Go stderr for debugging
+		fmt.Fprintf(os.Stderr, "[JS Error] %s\n", errorMsg)
+	})
+	
+	wv.Bind("mdTranslate", func(html, sourceLang, targetLang string, callback string) {
+		debugLog("[mdTranslate] JS called, html len: %d, src: %s, tgt: %s, callback: %s", len(html), sourceLang, targetLang, callback)
+
+		// Set initial title
+		baseTitle := filepath.Base(currentFile) + " - md-viewer"
+		wv.SetTitle("[⏳ 翻譯中 0%] " + baseTitle)
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					debugLog("[Translate] PANIC: %v", r)
+					wv.Dispatch(func() { wv.SetTitle("[❌ 翻譯崩潰] " + baseTitle) })
+				}
+			}()
+
+			result, err := TranslateMarkdown(html, sourceLang, targetLang, func(p int) {
+				wv.Dispatch(func() {
+					wv.SetTitle(fmt.Sprintf("[⏳ 翻譯中 %d%%] %s", p, baseTitle))
+				})
+			})
+
+			if err != nil {
+				debugLog("[Translate] goroutine: API returned err=%v", err)
+				wv.Dispatch(func() {
+					wv.SetTitle("[❌ 翻譯失敗] " + baseTitle)
+					safeErr := strings.ReplaceAll(err.Error(), "`", "'")
+					wv.Eval(fmt.Sprintf("if(window['%s'])window['%s']({error:'%s'})", callback, callback, safeErr))
+				})
+				return
+			}
+
+			// Success
+			encoded, err := json.Marshal(map[string]interface{}{
+				"success":            true,
+				"translatedMarkdown": result,
+			})
+
+			wv.Dispatch(func() {
+				if err != nil {
+					wv.SetTitle("[❌ 格式錯誤] " + baseTitle)
+					wv.Eval(fmt.Sprintf("if(window['%s'])window['%s']({error:'JSON error'})", callback, callback))
+				} else {
+					wv.SetTitle("[✅ 已翻譯] " + baseTitle)
+					callbackJS := fmt.Sprintf("if(window['%s'])window['%s'](%s)", callback, callback, string(encoded))
+					wv.Eval(callbackJS)
+				}
+			})
+		}()
+	})
+	// config is injected into htmlTemplate via _initConfig script
+	if currentFile == "" {
+		wv.SetHtml(renderEmpty())
+	} else {
+		wv.SetHtml(renderMD("Loading..."))
+		wv.Dispatch(func() { loadFile(currentFile) })
+	}
+
+	// Use JS resize event to detect user-initiated resizes only
+	// Go-side timer just initializes the last saved values
+	
+	time.AfterFunc(3*time.Second, func() {
+		// Start periodic check from Go side
+		lastSavedW, lastSavedH := initialWidth, initialHeight
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			winPtr := wv.Window()
+			if winPtr != nil {
+				w, h := GetWindowSize(winPtr)
+				winX, winY := GetWindowPosition(winPtr)
+				// Only save if significantly different AND different from initial (user action)
+				if (w != lastSavedW || h != lastSavedH) && (w != initialWidth || h != initialHeight) {
+					deltaW := w - lastSavedW
+					deltaH := h - lastSavedH
+					if deltaW > 30 || deltaW < -30 || deltaH > 30 || deltaH < -30 {
+						SetWindowSize(w, h)
+						SetWindowPosition(winX, winY)
+						lastSavedW, lastSavedH = w, h
+					}
+				}
+			}
+		}
+	})
+	wv.Run()
+}

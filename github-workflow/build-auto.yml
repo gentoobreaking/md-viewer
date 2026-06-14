@@ -1,0 +1,65 @@
+name: Build md-viewer
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'Marketing version (e.g. 1.0.0)'
+        required: false
+        default: '0.2.2'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Go ────────────────────────────────────────────────
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod   # reads version from your go.mod
+          cache: true
+
+      # ── Swift (already on macos-latest; pin if you need a specific version) ──
+      # Uncomment below if you need a specific Xcode / Swift version:
+      # - name: Select Xcode
+      #   run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      # ── Restore / save build number across runs ───────────
+      - name: Restore build number
+        uses: actions/cache@v4
+        with:
+          path: .build_number
+          key: build-number-${{ github.ref }}
+          restore-keys: build-number-
+
+      # ── Run your existing build script ────────────────────
+      - name: Build
+        env:
+          MARKETING_VERSION: ${{ github.event.inputs.marketing_version || '0.2.2' }}
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      # ── Upload the .app bundle as a build artifact ────────
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: md-viewer-app-${{ github.run_number }}
+          path: md-viewer.app/
+          retention-days: 14
+
+      # ── (Optional) Upload the standalone binary too ───────
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: md-viewer-binary-${{ github.run_number }}
+          path: md-viewer
+          retention-days: 14
