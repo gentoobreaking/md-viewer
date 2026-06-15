@@ -352,12 +352,12 @@ docker run -d --name deeplx -p 1188:1188 \
 
 ### 方法一：Homebrew
 ```bash
-brew tap openclawchen8-lgtm/tap
+brew tap gentoobreaking/tap
 brew install --cask md-viewer
 ```
 
 ### 方法二：手動下載
-從 [Releases](https://github.com/openclawchen8-lgtm/md-viewer-webview/releases) 下載 DMG。
+從 [Releases](https://github.com/gentoobreaking/md-viewer/releases) 下載 DMG。
 
 安裝後若出現「已損毀」提示，在終端機執行：
 ```bash
@@ -400,7 +400,7 @@ cp -r ./md-viewer.app /Applications/
 ### 編譯步驟
 
 ```bash
-git clone https://github.com/openclawchen8-lgtm/openclaw-tasks.git
+git clone https://github.com/gentoobreaking/md-viewer.git
 cd openclaw-tasks/md-viewer-webview
 
 # 一次性編譯 + 打包
